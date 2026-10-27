@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gil Merchant Calculator</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  fieldset { margin-bottom: 1.5rem; }
+  label { display: block; margin: .5rem 0; }
+  input, select { padding: .3rem; }
+  table { border-collapse: collapse; margin-top: .5rem; }
+  td, th { border: 1px solid #ccc; padding: .25rem .6rem; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+</style>
+</head>
+<body>
+<h1>Gil Merchant Calculator</h1>
+<p>Currency: the <b>lion</b> of Ehrenfest (seven coin denominations).</p>
+
+<fieldset>
+  <legend>Coin converter</legend>
+  <label>Amount <input id="amount" type="number" min="0" step="any" value="1"></label>
+  <label>From
+    <select id="from"></select>
+  </label>
+  <label>To
+    <select id="to"></select>
+  </label>
+  <p id="convResult" aria-live="polite"></p>
+  <p><b>Coin breakdown</b> (fewest coins):</p>
+  <table id="breakdown"></table>
+</fieldset>
+
+<fieldset>
+  <legend>Profit margin</legend>
+  <label>Cost (lion) <input id="cost" type="number" min="0" step="any" value="1000"></label>
+  <label>Selling price (lion) <input id="price" type="number" min="0" step="any" value="1500"></label>
+  <p id="profitResult" aria-live="polite"></p>
+</fieldset>
+
+<script>
+const COINS = [
+  ["Lion", 1],
+  ["Small Copper", 10],
+  ["Medium Copper", 100],
+  ["Large Copper", 1000],
+  ["Small Silver", 10000],
+  ["Large Silver", 100000],
+  ["Small Gold", 1000000],
+  ["Large Gold", 10000000],
+];
+const fmt = n => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+const $ = id => document.getElementById(id);
+
+for (const sel of [$("from"), $("to")]) {
+  COINS.forEach(([name, v], i) => sel.add(new Option(`${name} (${fmt(v)})`, i)));
+}
+$("from").value = 7;
+$("to").value = 0;
+
+function convert() {
+  const amount = parseFloat($("amount").value);
+  const table = $("breakdown");
+  table.innerHTML = "";
+  if (!(amount >= 0)) { $("convResult").textContent = "Enter a valid amount."; return; }
+  const [fn, fv] = COINS[$("from").value];
+  const [tn, tv] = COINS[$("to").value];
+  const lions = amount * fv;
+  $("convResult").textContent = `${fmt(amount)} ${fn} = ${fmt(lions / tv)} ${tn} (${fmt(lions)} lion)`;
+
+  let rest = Math.round(lions);
+  const rows = [];
+  for (const [name, v] of [...COINS].reverse()) {
+    const n = Math.floor(rest / v);
+    rest -= n * v;
+    if (n) rows.push(`<tr><td>${name}</td><td>${fmt(n)}</td></tr>`);
+  }
+  table.innerHTML = rows.join("") || "<tr><td>None</td><td>0</td></tr>";
+}
+
+function profit() {
+  const cost = parseFloat($("cost").value);
+  const price = parseFloat($("price").value);
+  if (!(cost >= 0) || !(price >= 0)) { $("profitResult").textContent = "Enter valid values."; return; }
+  const p = price - cost;
+  const margin = price > 0 ? (p / price) * 100 : 0;
+  const markup = cost > 0 ? (p / cost) * 100 : NaN;
+  $("profitResult").textContent =
+    `Profit: ${fmt(p)} lion | Margin: ${fmt(margin)}% | Markup: ${isNaN(markup) ? "n/a" : fmt(markup) + "%"}`;
+}
+
+["amount", "from", "to"].forEach(id => $(id).addEventListener("input", convert));
+["cost", "price"].forEach(id => $(id).addEventListener("input", profit));
+convert();
+profit();
+</script>
+</body>
+</html>
