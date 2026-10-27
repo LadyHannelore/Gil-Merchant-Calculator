@@ -14,6 +14,8 @@ from game_logic import (
 )
 
 W, H, SCALE = 320, 180, 3
+BUBBLE_SIZE = 17
+BUBBLE_LINE = 15
 PATIENCE = 45.0
 MAX_LIVES = 3
 
@@ -116,8 +118,8 @@ class Game:
         pygame.display.set_caption("Lion Merchant")
         self.canvas = pygame.Surface((W, H))
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(None, 14)
-        self.big = pygame.font.Font(None, 28)
+        self.fonts = {}
+        self.overlay = []
         self.coin_sprites = [make_coin_sprite(i) for i in range(8)]
         self.coin_rects = [
             pygame.Rect(8 + i * 38, 138, 32, 36) for i in range(8)]
@@ -280,14 +282,25 @@ class Game:
                     self.next_customer()
 
     # --- drawing -------------------------------------------------------
-    def text(self, s, x, y, color=WHITE, font=None, center=False):
-        img = (font or self.font).render(s, False, color)
-        r = img.get_rect()
-        if center:
-            r.midtop = (x, y)
-        else:
-            r.topleft = (x, y)
-        self.canvas.blit(img, r)
+    def font_for(self, size):
+        if size not in self.fonts:
+            self.fonts[size] = pygame.font.Font(None, size * SCALE)
+        return self.fonts[size]
+
+    def text(self, s, x, y, color=WHITE, size=14, center=False):
+        """Queue text; it is drawn at window resolution so it stays sharp."""
+        self.overlay.append((s, x, y, color, size, center))
+
+    def flush_text(self):
+        for s, x, y, color, size, center in self.overlay:
+            img = self.font_for(size).render(s, True, color)
+            r = img.get_rect()
+            if center:
+                r.midtop = (x * SCALE, y * SCALE)
+            else:
+                r.topleft = (x * SCALE, y * SCALE)
+            self.window.blit(img, r)
+        self.overlay = []
 
     def draw(self):
         c = self.canvas
@@ -317,14 +330,19 @@ class Game:
 
         # speech bubble
         if self.phase == "wait" or (self.phase == "leave" and not self.mood):
-            bx, by = 62, 14
-            pygame.draw.rect(c, WHITE, (bx, by, 150, 40))
-            pygame.draw.rect(c, BLACK, (bx, by, 150, 40), 1)
+            font = self.font_for(BUBBLE_SIZE)
+            widest = max(font.size(line)[0] for line in self.order.lines)
+            bw = widest // SCALE + 14
+            bh = len(self.order.lines) * BUBBLE_LINE + 8
+            bx, by = 70, 4
+            pygame.draw.rect(c, BLACK, (bx - 1, by - 1, bw + 2, bh + 2))
+            pygame.draw.rect(c, WHITE, (bx, by, bw, bh))
             pygame.draw.polygon(
                 c, WHITE,
-                [(bx + 4, by + 40), (bx + 14, by + 40), (bx - 6, by + 52)])
+                [(bx + 4, by + bh), (bx + 14, by + bh), (bx - 4, by + bh + 8)])
             for i, line in enumerate(self.order.lines):
-                self.text(line, bx + 5, by + 4 + i * 11, BLACK)
+                self.text(line, bx + 7, by + 5 + i * BUBBLE_LINE, BLACK,
+                          BUBBLE_SIZE)
 
         # patience bar
         frac = max(0, self.patience / self.max_patience)
@@ -337,7 +355,7 @@ class Game:
         self.text(f"BEST {self.high}", 6, 15, SILVER)
         for i in range(MAX_LIVES):
             col = RED if i < self.lives else (70, 50, 60)
-            x, y = 190 + i * 11, 5
+            x, y = W - 40 + i * 11, 5
             pygame.draw.rect(c, col, (x, y + 1, 3, 3))
             pygame.draw.rect(c, col, (x + 4, y + 1, 3, 3))
             pygame.draw.rect(c, col, (x, y + 3, 7, 3))
@@ -379,7 +397,7 @@ class Game:
         for r, label, col in buttons:
             pygame.draw.rect(c, col, r)
             pygame.draw.rect(c, BLACK, r, 1)
-            self.text(label, r.centerx, r.y + 3, BLACK, center=True)
+            self.text(label, r.centerx, r.y + 3, BLACK, 12, True)
 
         if self.msg_timer > 0:
             msg_col = WHITE if self.mood == "happy" else RED
@@ -392,13 +410,14 @@ class Game:
             s = pygame.Surface((W, H), pygame.SRCALPHA)
             s.fill((0, 0, 0, 170))
             c.blit(s, (0, 0))
-            self.text("SHOP CLOSED", W // 2, 55, RED, self.big, True)
+            self.text("SHOP CLOSED", W // 2, 55, RED, 30, True)
             self.text(f"Score {self.score}   Served {self.served}",
                       W // 2, 85, WHITE, center=True)
             self.text("Press Enter to play again", W // 2, 105, YELLOW,
                       center=True)
 
         pygame.transform.scale(c, self.window.get_size(), self.window)
+        self.flush_text()
         pygame.display.flip()
 
     def run(self):
