@@ -1,4 +1,7 @@
-"""Lion Merchant: an 8-bit shop game. Serve customers with correct coins and prices."""
+"""Lion Merchant: an 8-bit shop game.
+
+Serve customers with the correct coins, prices and haggles.
+"""
 import math
 import random
 import sys
@@ -6,7 +9,8 @@ import sys
 import pygame
 
 from game_logic import (
-    COIN_VALUES, check_order, haggle_accept, haggle_counter, make_order, short, tray_total,
+    COIN_VALUES, check_order, haggle_accept, haggle_counter, make_order,
+    short, tray_total,
 )
 
 W, H, SCALE = 320, 180, 3
@@ -52,7 +56,7 @@ CUSTOMER = [
 ]
 
 
-def build_sprite(rows, palette, scale=1):
+def build_sprite(rows, palette):
     surf = pygame.Surface((len(rows[0]), len(rows)), pygame.SRCALPHA)
     for y, row in enumerate(rows):
         for x, ch in enumerate(row):
@@ -61,10 +65,18 @@ def build_sprite(rows, palette, scale=1):
     return surf
 
 
+HAIR_COLORS = [(60, 40, 30), (200, 160, 60), (150, 60, 60),
+               (100, 100, 160), (30, 30, 40)]
+CLOTH_COLORS = [(80, 120, 200), (90, 170, 90), (170, 90, 170),
+                (200, 140, 60), (120, 120, 130)]
+
+
 def random_customer():
-    hair = random.choice([(60, 40, 30), (200, 160, 60), (150, 60, 60), (100, 100, 160), (30, 30, 40)])
-    cloth = random.choice([(80, 120, 200), (90, 170, 90), (170, 90, 170), (200, 140, 60), (120, 120, 130)])
-    pal = {"h": hair, "s": SKIN, "e": BLACK, "m": (160, 70, 70), "c": cloth, "p": (60, 60, 90), "b": (70, 45, 35)}
+    pal = {
+        "h": random.choice(HAIR_COLORS), "s": SKIN, "e": BLACK,
+        "m": (160, 70, 70), "c": random.choice(CLOTH_COLORS),
+        "p": (60, 60, 90), "b": (70, 45, 35),
+    }
     return pygame.transform.scale(build_sprite(CUSTOMER, pal), (24, 32))
 
 
@@ -107,7 +119,8 @@ class Game:
         self.font = pygame.font.Font(None, 14)
         self.big = pygame.font.Font(None, 28)
         self.coin_sprites = [make_coin_sprite(i) for i in range(8)]
-        self.coin_rects = [pygame.Rect(8 + i * 38, 138, 32, 36) for i in range(8)]
+        self.coin_rects = [
+            pygame.Rect(8 + i * 38, 138, 32, 36) for i in range(8)]
         self.ok_rect = pygame.Rect(W - 58, 100, 54, 14)
         self.clear_rect = pygame.Rect(W - 58, 118, 54, 14)
         self.high = 0
@@ -132,7 +145,6 @@ class Game:
         self.max_patience = self.patience
         self.cx = -20.0
         self.phase = "enter"  # enter -> wait -> leave
-        self.leave_dir = 1
         self.mood = ""
         self.msg = ""
         self.msg_timer = 0.0
@@ -147,8 +159,7 @@ class Game:
         ok, msg = check_order(self.order, self.tray, self.typed)
         self.msg, self.msg_timer = msg, 2.0
         if ok:
-            bonus = int(self.patience / self.max_patience * 100)
-            self.score += 100 + bonus
+            self.score += 100 + self.patience_bonus()
             self.served += 1
             self.burst(GOLD)
             self.mood = "happy"
@@ -157,7 +168,9 @@ class Game:
             self.burst(RED)
             self.mood = "angry"
         self.phase = "leave"
-        self.leave_dir = 1
+
+    def patience_bonus(self):
+        return int(self.patience / self.max_patience * 100)
 
     def haggle(self, accept):
         o = self.order
@@ -175,7 +188,8 @@ class Game:
             return
         if status == "sold":
             profit_pct = (o.offer - o.cost) * 100 // o.cost
-            self.score += 100 + int(self.patience / self.max_patience * 100) + min(100, profit_pct)
+            self.score += (
+                100 + self.patience_bonus() + min(100, profit_pct))
             self.served += 1
             self.burst(GOLD)
             self.mood = "happy"
@@ -218,7 +232,8 @@ class Game:
                 self.typed = self.typed[:-1]
             elif e.key == pygame.K_c:
                 self.tray = {}
-            elif e.unicode.isdigit() and not self.order.uses_tray and len(self.typed) < 8:
+            elif (e.unicode.isdigit() and not self.order.uses_tray
+                  and len(self.typed) < 8):
                 self.typed += e.unicode
         elif e.type == pygame.MOUSEBUTTONDOWN and e.button in (1, 3):
             pos = (e.pos[0] // SCALE, e.pos[1] // SCALE)
@@ -289,21 +304,25 @@ class Game:
         pygame.draw.rect(c, WOOD, (0, 84, W, 14))
         pygame.draw.rect(c, WOOD2, (0, 98, W, 4))
 
-        if self.phase != "enter" or True:
-            bob = int(abs(math.sin(self.t * 8)) * 2) if self.phase != "wait" else int(math.sin(self.t * 3) > 0.6)
-            sx, sy = int(self.cx), 84 - 32 - bob
-            c.blit(self.sprite, (sx, sy))
-            if self.mood == "happy":
-                self.text("^_^", sx + 6, sy - 10, LIME, center=True)
-            elif self.mood == "angry":
-                self.text(">:(", sx + 6, sy - 10, RED, center=True)
+        if self.phase == "wait":
+            bob = int(math.sin(self.t * 3) > 0.6)
+        else:
+            bob = int(abs(math.sin(self.t * 8)) * 2)
+        sx, sy = int(self.cx), 84 - 32 - bob
+        c.blit(self.sprite, (sx, sy))
+        if self.mood == "happy":
+            self.text("^_^", sx + 6, sy - 10, LIME, center=True)
+        elif self.mood == "angry":
+            self.text(">:(", sx + 6, sy - 10, RED, center=True)
 
         # speech bubble
         if self.phase == "wait" or (self.phase == "leave" and not self.mood):
             bx, by = 62, 14
             pygame.draw.rect(c, WHITE, (bx, by, 150, 40))
             pygame.draw.rect(c, BLACK, (bx, by, 150, 40), 1)
-            pygame.draw.polygon(c, WHITE, [(bx + 4, by + 40), (bx + 14, by + 40), (bx - 6, by + 52)])
+            pygame.draw.polygon(
+                c, WHITE,
+                [(bx + 4, by + 40), (bx + 14, by + 40), (bx - 6, by + 52)])
             for i, line in enumerate(self.order.lines):
                 self.text(line, bx + 5, by + 4 + i * 11, BLACK)
 
@@ -328,33 +347,43 @@ class Game:
         # tray / typed answer panel
         pygame.draw.rect(c, BLACK, (6, 104, W - 70, 30))
         if self.order.uses_tray:
-            self.text(f"TRAY: {tray_total(self.tray):,} lion", 10, 108, WHITE)
+            self.text(f"TRAY: {tray_total(self.tray):,} lion",
+                      10, 108, WHITE)
             self.text("L-click add  R-click remove", 10, 120, SILVER)
         else:
             blink = "_" if int(self.t * 2) % 2 == 0 else " "
-            self.text(f"ANSWER: {self.typed}{blink} {self.order.unit}", 10, 108, WHITE)
-            hint = "Type counter, Enter" if self.order.kind == "haggle" else "Type digits, Enter to submit"
+            self.text(f"ANSWER: {self.typed}{blink} {self.order.unit}",
+                      10, 108, WHITE)
+            if self.order.kind == "haggle":
+                hint = "Type counter, Enter"
+            else:
+                hint = "Type digits, Enter to submit"
             self.text(hint, 10, 120, SILVER)
 
         for i, (r, spr) in enumerate(zip(self.coin_rects, self.coin_sprites)):
+            value = COIN_VALUES[i]
             pygame.draw.rect(c, WOOD2, r)
             pygame.draw.rect(c, BLACK, r, 1)
             c.blit(spr, spr.get_rect(center=(r.centerx, r.y + 12)))
-            self.text(short(COIN_VALUES[i]), r.centerx, r.y + 22, WHITE, center=True)
-            n = self.tray.get(COIN_VALUES[i], 0)
+            self.text(short(value), r.centerx, r.y + 22, WHITE, center=True)
+            n = self.tray.get(value, 0)
             if n:
                 self.text(f"x{n}", r.right - 2, r.y + 1, YELLOW)
 
-        haggling = self.order.kind == "haggle"
-        buttons = ((self.ok_rect, "COUNTER" if haggling else "SERVE", LIME),
-                   (self.clear_rect, "ACCEPT" if haggling else "CLEAR", YELLOW if haggling else RED))
+        if self.order.kind == "haggle":
+            buttons = ((self.ok_rect, "COUNTER", LIME),
+                       (self.clear_rect, "ACCEPT", YELLOW))
+        else:
+            buttons = ((self.ok_rect, "SERVE", LIME),
+                       (self.clear_rect, "CLEAR", RED))
         for r, label, col in buttons:
             pygame.draw.rect(c, col, r)
             pygame.draw.rect(c, BLACK, r, 1)
             self.text(label, r.centerx, r.y + 3, BLACK, center=True)
 
         if self.msg_timer > 0:
-            self.text(self.msg, W // 2, 76, WHITE if self.mood == "happy" else RED, center=True)
+            msg_col = WHITE if self.mood == "happy" else RED
+            self.text(self.msg, W // 2, 76, msg_col, center=True)
 
         for p in self.particles:
             c.fill(p.color, (int(p.x), int(p.y), 2, 2))
@@ -364,8 +393,10 @@ class Game:
             s.fill((0, 0, 0, 170))
             c.blit(s, (0, 0))
             self.text("SHOP CLOSED", W // 2, 55, RED, self.big, True)
-            self.text(f"Score {self.score}   Served {self.served}", W // 2, 85, WHITE, center=True)
-            self.text("Press Enter to play again", W // 2, 105, YELLOW, center=True)
+            self.text(f"Score {self.score}   Served {self.served}",
+                      W // 2, 85, WHITE, center=True)
+            self.text("Press Enter to play again", W // 2, 105, YELLOW,
+                      center=True)
 
         pygame.transform.scale(c, self.window.get_size(), self.window)
         pygame.display.flip()

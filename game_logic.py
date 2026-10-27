@@ -75,9 +75,14 @@ def haggle_lines(order: Order) -> list:
 def make_haggle(level: int, rng=random) -> Order:
     cost = rng.randrange(5, 20 + 20 * min(level, 4)) * 1000
     low = haggle_min(cost)
-    budget = low + rng.randrange(0, 5) * (cost // 20) if rng.random() < 0.8 else low - rng.randrange(1, 4) * (cost // 20)
+    step = cost // 20
+    if rng.random() < 0.8:
+        budget = low + rng.randrange(0, 5) * step
+    else:
+        budget = low - rng.randrange(1, 4) * step
     offer = max(100, (cost * rng.randrange(60, 100) // 100) // 100 * 100)
-    order = Order("haggle", [], unit="lion", cost=cost, offer=offer, budget=budget)
+    order = Order(
+        "haggle", [], unit="lion", cost=cost, offer=offer, budget=budget)
     order.lines = haggle_lines(order)
     return order
 
@@ -106,7 +111,8 @@ def haggle_counter(order: Order, counter: int):
 
 
 def make_order(level: int, rng=random) -> Order:
-    kind = rng.choice(["change", "exchange", "quote", "margin", "haggle", "haggle"])
+    kind = rng.choice(
+        ["change", "exchange", "quote", "margin", "haggle", "haggle"])
     tier = min(level, 4)
     if kind == "haggle":
         return make_haggle(level, rng)
@@ -119,17 +125,26 @@ def make_order(level: int, rng=random) -> Order:
             paid_with = nxt[0] if nxt else paid_with
         return Order(
             "change",
-            [f"Item costs {price:,} lion.", f"I pay 1 {coin_name(paid_with)}", f"({paid_with:,} lion). My change?"],
+            [
+                f"Item costs {price:,} lion.",
+                f"I pay 1 {coin_name(paid_with)}",
+                f"({paid_with:,} lion). My change?",
+            ],
             target_total=paid_with - price,
         )
 
     if kind == "exchange":
         src_i = rng.randrange(3, 8)
         src = COIN_VALUES[src_i]
-        dst = COIN_VALUES[rng.randrange(max(1, src_i - 2 - tier // 2), src_i)]
+        # one denomination down keeps the coin count clickable (10 coins)
+        dst = COIN_VALUES[src_i - 1]
         return Order(
             "exchange",
-            [f"Swap my {coin_name(src)}", f"into {coin_name(dst)} coins,", "please!"],
+            [
+                f"Swap my {coin_name(src)}",
+                f"into {coin_name(dst)} coins,",
+                "please!",
+            ],
             target_total=src,
             only_coin=dst,
         )
@@ -139,7 +154,11 @@ def make_order(level: int, rng=random) -> Order:
         markup = rng.choice([10, 20, 25, 50])
         return Order(
             "quote",
-            [f"Cost: {cost:,} lion.", f"Add {markup}% markup.", "Selling price?"],
+            [
+                f"Cost: {cost:,} lion.",
+                f"Add {markup}% markup.",
+                "Selling price?",
+            ],
             answer=cost * (100 + markup) // 100,
             unit="lion",
         )
@@ -149,7 +168,11 @@ def make_order(level: int, rng=random) -> Order:
     profit = price * margin // 100
     return Order(
         "margin",
-        [f"Sold {price:,}, cost {price - profit:,}.", "Profit margin on", "the price? (%)"],
+        [
+            f"Sold {price:,}, cost {price - profit:,}.",
+            "Profit margin on",
+            "the price? (%)",
+        ],
         answer=margin,
         unit="%",
     )
@@ -163,7 +186,9 @@ def check_order(order: Order, tray: dict, typed: str):
     """Return (correct, message)."""
     if order.uses_tray:
         total = tray_total(tray)
-        if order.only_coin and any(v != order.only_coin and n for v, n in tray.items()):
+        wrong_coin = any(
+            v != order.only_coin and n for v, n in tray.items())
+        if order.only_coin and wrong_coin:
             return False, f"Only {coin_name(order.only_coin)} coins!"
         if total == order.target_total:
             return True, "Perfect!"
